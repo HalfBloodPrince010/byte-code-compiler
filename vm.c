@@ -44,7 +44,10 @@ static void concatenate() {
   push(OBJ_VAL(result));
 }
 
-void initVM() { resetStack(); }
+void initVM() {
+  resetStack();
+  vm.objects = NULL;
+}
 
 static void runtimeError(const char *format, ...) {
   va_list args;
@@ -59,7 +62,7 @@ static void runtimeError(const char *format, ...) {
   resetStack();
 }
 
-void freeVM() {}
+void freeVM() { freeObjects(); }
 
 static InterpretResult run() {
 #define READ_BYTE() (*vm.ip++)
