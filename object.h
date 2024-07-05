@@ -26,8 +26,9 @@ struct ObjString {
   char *chars;
 };
 
+ObjString *takeString(char *chars, int length);
 ObjString *copyString(const char *chars, int length);
-
+void printObject(Value value);
 // Why not define function itself as a macro?
 // As seen, the body uses "value" twice, and macro is expanded
 // by argument expression every place parameter name appear in the body.
