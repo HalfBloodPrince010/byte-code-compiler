@@ -8,6 +8,7 @@
 #include "debug.h"
 #include "memory.h"
 #include "object.h"
+#include "table.h"
 #include "value.h"
 #include "vm.h"
 
@@ -47,6 +48,7 @@ static void concatenate() {
 void initVM() {
   resetStack();
   vm.objects = NULL;
+  initTable(&vm.strings);
 }
 
 static void runtimeError(const char *format, ...) {
@@ -62,7 +64,10 @@ static void runtimeError(const char *format, ...) {
   resetStack();
 }
 
-void freeVM() { freeObjects(); }
+void freeVM() {
+  freeTable(&vm.strings);
+  freeObjects();
+}
 
 static InterpretResult run() {
 #define READ_BYTE() (*vm.ip++)
