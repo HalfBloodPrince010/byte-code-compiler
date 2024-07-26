@@ -97,6 +97,17 @@ static void consume(TokenType type, const char *message) {
   errorAtCurrent(message);
 }
 
+static bool check(TokenType type) { return parser.current.type == type; }
+
+static bool match(TokenType type) {
+  if (!check(type)) {
+    return false;
+  }
+
+  advance();
+  return true;
+}
+
 // EMIT Instruction Functions
 static void emitByte(uint8_t byte) {
   writeChunk(currentChunk(), byte, parser.previous.line);
@@ -118,8 +129,10 @@ static void endCompiler() {
 #endif
 }
 
-// Function Declarations, for function defined after parse tables
+// Function forward Declarations, for function defined after parse tables
 static void expression();
+static void statement();
+static void declaration();
 static ParseRule *getRule(TokenType type);
 static void parsePrecedence(Precedence precedence);
 
@@ -293,6 +306,23 @@ static ParseRule *getRule(TokenType type) { return &rules[type]; }
 
 static void expression() { parsePrecedence(PREC_ASSIGNMENT); }
 
+static void printStatement() {
+  expression();
+  consume(TOKEN_SEMICOLON, "Expect ';' after value.");
+  emitByte(OP_PRINT);
+}
+
+// Add forward declaration, because block statement which is type of statement
+// can indeed have declaration, same with "control flow statement" which can
+// have other statement, hence declaration and statement will be recursive.
+static void declaration() { statement(); }
+
+static void statement() {
+  if (match(TOKEN_PRINT)) {
+    printStatement();
+  }
+}
+
 // 1. Parse the User's Source Code to understand what it means.
 // 2. Use the knowledge to spit out low level Instructions
 bool compile(const char *source, Chunk *chunk) {
@@ -303,7 +333,9 @@ bool compile(const char *source, Chunk *chunk) {
   parser.panicMode = false;
 
   advance();
-  expression();
+  while (!match(TOKEN_EOF)) {
+    declaration();
+  }
   consume(TOKEN_EOF, "Expect End of Expression.");
   endCompiler();
   return !parser.hadError;

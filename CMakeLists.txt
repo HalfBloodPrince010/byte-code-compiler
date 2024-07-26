@@ -8,4 +8,4 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(CMAKE_BUILD_TYPE Debug)
 
-add_executable(clox main.c memory.c chunk.c value.c debug.c vm.c compiler.c scanner.c object.c)
+add_executable(clox main.c memory.c chunk.c value.c debug.c vm.c compiler.c scanner.c object.c table.c)
