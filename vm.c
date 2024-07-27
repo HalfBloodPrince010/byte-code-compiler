@@ -124,6 +124,20 @@ static InterpretResult run() {
       pop();
       break;
     }
+    case OP_SET_GLOBAL: {
+      ObjString *name = READ_STRING();
+      if (tableSet(&vm.globals, name, peek(0))) {
+        // tableSet returns true if new key, hence
+        // we delete the key value we added and report
+        // runtime error if its  a new value
+        tableDelete(&vm.globals, name);
+        runtimeError("Undefined variable '%s'.", name->chars);
+        return INTERPRET_RUNTIME_ERROR;
+      }
+      // Why not popping? Because since this is an assignment expression
+      // It can nested in another expression for instance a = b = 1
+      // we need that value on stack.
+    } break;
     case OP_GET_GLOBAL: {
       ObjString *name = READ_STRING();
       Value value;
