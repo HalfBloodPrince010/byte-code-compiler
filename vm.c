@@ -118,10 +118,29 @@ static InterpretResult run() {
     case OP_POP:
       pop();
       break;
+    case OP_GET_LOCAL: {
+      /*
+      {
+       var a = 10;
+       var b = a;
+       a get local should get value from slot and push to top of the
+       stack as it get evaluated as part of varDeclaration expression()
+       for b.
+      }
+      */
+      uint8_t slot = READ_BYTE();
+      push(vm.stack[slot]);
+      break;
+    }
     case OP_DEFINE_GLOBAL: {
       ObjString *name = READ_STRING();
       tableSet(&vm.globals, name, peek(0));
       pop();
+      break;
+    }
+    case OP_SET_LOCAL: {
+      uint8_t slot = READ_BYTE();
+      vm.stack[slot] = peek(0);
       break;
     }
     case OP_SET_GLOBAL: {
