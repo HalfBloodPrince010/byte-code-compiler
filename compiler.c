@@ -43,7 +43,16 @@ typedef struct {
   int depth;
 } Local;
 
+typedef enum {
+  TYPE_FUNCTION,
+  TYPE_SCRIPT
+
+} FunctionType;
+
 typedef struct {
+  ObjFunction *function;
+  FunctionType type;
+
   Local locals[UINT8_COUNT];
   int localCount;
   int scopeDepth;
@@ -51,9 +60,7 @@ typedef struct {
 
 Parser parser;
 Compiler *current = NULL;
-Chunk *compilingChunk;
-
-static Chunk *currentChunk() { return compilingChunk; }
+static Chunk *currentChunk() { return &current->function->chunk; }
 
 // Error Handling Helpers
 static void errorAt(Token *token, const char *message) {
@@ -180,19 +187,35 @@ static void patchJump(int offset) {
   currentChunk()->code[offset + 1] = jump & 0xFF; // mask to get --> LSB
 }
 
-static void initCompiler(Compiler *compiler) {
+static void initCompiler(Compiler *compiler, FunctionType type) {
+  compiler->function = NULL;
+  compiler->type = type;
+
   compiler->localCount = 0;
   compiler->scopeDepth = 0;
+  compiler->function = newFunction();
   current = compiler;
+
+  // While lexical scoping, we keep first slot reserved for function
+  // name.
+  Local *local = &current->locals[current->localCount++];
+  local->depth = 0;
+  local->name.start = "";
+  local->name.length = 0;
 }
 
-static void endCompiler() {
+static ObjFunction *endCompiler() {
   emitReturn();
+  ObjFunction *function = current->function;
 #ifdef DEBUG_PRINT_CODE
   if (!parser.hadError) {
-    disassembleChunk(currentChunk(), "code");
+    disassembleChunk(currentChunk(), function->name != NULL
+                                         ? function->name->chars
+                                         : "<script>");
   }
 #endif
+
+  return function;
 }
 
 static void beginScope() { current->scopeDepth++; }
@@ -678,13 +701,10 @@ static void statement() {
   }
 }
 
-// 1. Parse the User's Source Code to understand what it means.
-// 2. Use the knowledge to spit out low level Instructions
-bool compile(const char *source, Chunk *chunk) {
+ObjFunction *compile(const char *source) {
   initScanner(source);
   Compiler compiler;
-  initCompiler(&compiler);
-  compilingChunk = chunk;
+  initCompiler(&compiler, TYPE_SCRIPT);
 
   parser.hadError = false;
   parser.panicMode = false;
@@ -694,6 +714,6 @@ bool compile(const char *source, Chunk *chunk) {
     declaration();
   }
   consume(TOKEN_EOF, "Expect End of Expression.");
-  endCompiler();
-  return !parser.hadError;
+  ObjFunction *function = endCompiler();
+  return parser.hadError ? NULL : function;
 }
