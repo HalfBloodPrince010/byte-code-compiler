@@ -1,6 +1,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 #include "chunk.h"
 #include "common.h"
@@ -13,6 +14,10 @@
 #include "vm.h"
 
 VM vm;
+
+static Value clockNative(int argCount, Value *args) {
+  return NUMBER_VAL((double)clock() / CLOCKS_PER_SEC);
+}
 
 static void resetStack() {
   vm.stackTop = vm.stack;
@@ -51,6 +56,16 @@ static void runtimeError(const char *format, ...) {
   resetStack();
 }
 
+// Foreign Function Interface to expose different native methods
+// to the language users
+static void defineNative(const char *name, NativeFn function) {
+  push(OBJ_VAL(copyString(name, (int)strlen(name))));
+  push(OBJ_VAL(newNative(function)));
+  tableSet(&vm.globals, AS_STRING(vm.stack[0]), vm.stack[1]);
+  pop();
+  pop();
+}
+
 static Value peek(int distance) { return vm.stackTop[-1 - distance]; }
 
 static bool call(ObjFunction *function, int argCount) {
@@ -77,6 +92,16 @@ static bool callValue(Value callee, int argCount) {
     switch (OBJ_TYPE(callee)) {
     case OBJ_FUNCTION: {
       return call(AS_FUNCTION(callee), argCount);
+    }
+    case OBJ_NATIVE: {
+      // We don't need to manually setup CallFrame for native function.
+      // Since, we don't have to generate INSTR. Native langauge will handle
+      // the execution.
+      NativeFn native = AS_NATIVE(callee);
+      Value result = native(argCount, vm.stackTop - argCount);
+      vm.stackTop -= argCount + 1;
+      push(result);
+      return true;
     }
     default:
       break; // non-callable
@@ -108,6 +133,9 @@ void initVM() {
   vm.objects = NULL;
   initTable(&vm.globals);
   initTable(&vm.strings);
+
+  // Register the native functions using FFI: defineNative
+  defineNative("clock", clockNative);
 }
 
 void freeVM() {
