@@ -19,7 +19,13 @@
 #define AS_STRING(value) ((ObjString *)AS_OBJ(value))
 #define AS_CSTRING(value) (((ObjString *)AS_OBJ(value))->chars)
 
-typedef enum { OBJ_STRING, OBJ_FUNCTION, OBJ_NATIVE, OBJ_CLOSURE } ObjType;
+typedef enum {
+  OBJ_STRING,
+  OBJ_FUNCTION,
+  OBJ_NATIVE,
+  OBJ_CLOSURE,
+  OBJ_UPVALUE
+} ObjType;
 
 struct Obj {
   ObjType type;
@@ -48,9 +54,16 @@ struct ObjString {
   uint32_t hash;
 };
 
+typedef struct ObjUpvalue {
+  Obj obj;
+  Value *location;
+} ObjUpvalue;
+
 typedef struct {
   Obj obj;
   ObjFunction *function;
+  ObjUpvalue **upvalues;
+  int upvalueCount;
 } ObjClosure;
 
 ObjClosure *newClosure(ObjFunction *function);
@@ -58,6 +71,7 @@ ObjFunction *newFunction();
 ObjNative *newNative(NativeFn function);
 ObjString *takeString(char *chars, int length);
 ObjString *copyString(const char *chars, int length);
+ObjUpvalue *newUpvalue(Value *slot);
 void printObject(Value value);
 // Why not define function itself as a macro?
 // As seen, the body uses "value" twice, and macro is expanded

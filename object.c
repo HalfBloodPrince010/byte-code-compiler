@@ -21,8 +21,15 @@ static Obj *allocateObject(size_t size, ObjType type) {
 }
 
 ObjClosure *newClosure(ObjFunction *function) {
+  ObjUpvalue **upvalues = ALLOCATE(ObjUpvalue *, function->upvalueCount);
+  for (int i = 0; i < function->upvalueCount; i++) {
+    upvalues[i] = NULL;
+  }
+
   ObjClosure *closure = ALLOCATE_OBJ(ObjClosure, OBJ_CLOSURE);
   closure->function = function;
+  closure->upvalueCount = function->upvalueCount;
+  closure->upvalues = upvalues;
   return closure;
 }
 
@@ -103,6 +110,12 @@ static void printFunction(ObjFunction *function) {
   printf("<fn %s>", function->name->chars);
 }
 
+ObjUpvalue *newUpvalue(Value *slot) {
+  ObjUpvalue *upvalue = ALLOCATE_OBJ(ObjUpvalue, OBJ_UPVALUE);
+  upvalue->location = slot;
+  return upvalue;
+}
+
 void printObject(Value value) {
   switch (OBJ_TYPE(value)) {
   case OBJ_CLOSURE: {
@@ -117,8 +130,13 @@ void printObject(Value value) {
     printf("<native fn>");
     break;
   }
-  case OBJ_STRING:
+  case OBJ_STRING: {
     printf("%s", AS_CSTRING(value));
     break;
+  }
+  case OBJ_UPVALUE: {
+    printf("upvalue");
+    break;
+  }
   }
 }
