@@ -22,6 +22,7 @@ static Value clockNative(int argCount, Value *args) {
 static void resetStack() {
   vm.stackTop = vm.stack;
   vm.frameCount = 0;
+  vm.openUpvalues = NULL;
 }
 
 void push(Value value) {
@@ -112,8 +113,38 @@ static bool callValue(Value callee, int argCount) {
 }
 
 static ObjUpvalue *captureUpvalue(Value *local) {
+  ObjUpvalue *prevUpvalue = NULL;
+  ObjUpvalue *upvalue = vm.openUpvalues;
+  while (upvalue != NULL && upvalue->location > local) {
+    prevUpvalue = upvalue;
+    upvalue = upvalue->next;
+  }
+
+  // check if upvalue == NULL or we found the upvalue location
+  if (upvalue != NULL && upvalue->location == local) {
+    return upvalue;
+  }
+
   ObjUpvalue *createdUpvalue = newUpvalue(local);
+  // insert the upvalue to openUpvalues tracked by vm
+  createdUpvalue->next = upvalue;
+
+  if (prevUpvalue == NULL) {
+    vm.openUpvalues = createdUpvalue;
+  } else {
+    prevUpvalue->next = createdUpvalue;
+  }
+
   return createdUpvalue;
+}
+
+static void closeUpvalues(Value *last) {
+  while (vm.openUpvalues != NULL && vm.openUpvalues->location >= last) {
+    ObjUpvalue *upvalue = vm.openUpvalues;
+    upvalue->closed = *upvalue->location;
+    upvalue->location = &upvalue->closed;
+    vm.openUpvalues = upvalue->next;
+  }
 }
 
 static bool isFalsey(Value value) {
@@ -360,8 +391,25 @@ static InterpretResult run() {
       }
       break;
     }
+    case OP_CLOSE_UPVALUE: {
+      closeUpvalues(vm.stackTop - 1);
+      pop();
+      break;
+    }
     case OP_RETURN: {
       Value result = pop();
+      /*
+       * Important (closures): Ideally endScope should add OP_POP or
+       * OP_CLOSE_UPVALUE for each local variable it removes from the stack at
+       * the end of the function. However, in functions we don't call endScope
+       * since we are popping the entire callframe (using return). As a result,
+       * we need to capture the parameters and local declared variables in the
+       * outerscope where a function body is declared before popping the
+       * callframe. Hence, we close all the openUpvalues from the starting of
+       * the callframe.
+       */
+      closeUpvalues(frame->slots);
+
       vm.frameCount--;
       if (vm.frameCount == 0) {
         // script (high level) function added at the top of the stack initially.
