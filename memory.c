@@ -33,17 +33,77 @@ void markObject(Obj *object) {
   if (object == NULL) {
     return;
   }
+  if (object->isMarked) {
+    // We dont want to repeatedly add same objects to worklist
+    return;
+  }
 #ifdef DEBUG_LOG_GC
   printf("%p mark", (void *)object);
   printValue(OBJ_VAL(object));
   printf("\n");
 #endif
   object->isMarked = true;
+
+  if (vm.grayCapacity < vm.grayCount + 1) {
+    vm.grayCapacity = GROW_CAPACITY(vm.grayCapacity);
+    /*
+     * Note, we are using the std lib realloc instead of the wrapper
+     * "reallocate" This is because, GC don't manage the grayStack.
+     * If while dynamically allocating the grayStack, we will end up
+     * calling GC again.
+     */
+    vm.grayStack =
+        (Obj **)realloc(vm.grayStack, sizeof(Obj *) * vm.grayCapacity);
+
+    if (vm.grayStack == NULL) {
+      exit(1);
+    }
+  }
+
+  vm.grayStack[vm.grayCount++] = object;
 }
 
 void markValue(Value value) {
   if (IS_OBJ(value))
     markObject(AS_OBJ(value));
+}
+
+static void markArray(ValueArray *array) {
+  for (int i = 0; i < array->count; i++) {
+    markValue(array->values[i]);
+  }
+}
+
+static void blackenObject(Obj *object) {
+#ifdef DEBUG_LOG_GC
+  printf("%p blacken", (void *)object);
+  printValue(OBJ_VAL(object));
+  printf("\n");
+#endif
+
+  switch (object->type) {
+  case OBJ_CLOSURE: {
+    ObjClosure *closure = (ObjClosure *)object;
+    markObject((Obj *)closure->function);
+    for (int i = 0; i < closure->upvalueCount; i++) {
+      markObject((Obj *)closure->upvalues[i]);
+    }
+    break;
+  }
+  case OBJ_FUNCTION: {
+    ObjFunction *function = (ObjFunction *)object;
+    markObject((Obj *)function->name);
+    markArray(&function->chunk.constants);
+    break;
+  }
+  // Value not in stack, but moved to upvalue
+  case OBJ_UPVALUE:
+    markValue(((ObjUpvalue *)object)->closed);
+    break;
+  case OBJ_NATIVE:
+  case OBJ_STRING:
+    break;
+  }
 }
 
 static void freeObject(Obj *object) {
@@ -109,11 +169,57 @@ static void markRoots() {
   markCompilerRoots();
 }
 
+static void traceReferences() {
+  while (vm.grayCount > 0) {
+    Obj *object = vm.grayStack[--vm.grayCount];
+    // mark the current object black, then traces other references, and adds it
+    // to grayStack/worklist.
+    blackenObject(object);
+  }
+}
+
+static void sweep() {
+  Obj *prev = NULL;
+  Obj *object = vm.objects;
+  while (object != NULL) {
+    if (object->isMarked) {
+      // make these obj white for the GC cycle
+      object->isMarked = false;
+      prev = object;
+      object = object->next;
+    } else {
+      Obj *unreached = object;
+      object = object->next;
+      if (prev != NULL) {
+        prev->next = object;
+      } else {
+        vm.objects = object;
+      }
+
+      freeObject(unreached);
+    }
+  }
+}
+
 void collectGarbage() {
 #ifdef DEBUG_LOG_GC
   printf("-- gc begin\n");
 #endif
+
   markRoots();
+  traceReferences();
+  /*
+   * We didn't mark "interned strings" as "roots" specifically due to fact that
+   * interned strings table contains all the string. Marking it as root, we
+   * don't eliminate /remove any strings. If we don't, then all the string will
+   * be cleared by GC Hence, we need to "create weak references", and this
+   * happens between marking obj roots and sweeping them. Since we know the
+   * marked string, we can scan the table and deleted the ones that are marked
+   * false.
+   */
+  tableRemoveWhite(&vm.strings);
+  sweep();
+
 #ifdef DEBUG_LOG_GC
   printf("-- gc end\n");
 #endif
@@ -126,4 +232,6 @@ void freeObjects() {
     freeObject(object);
     object = next;
   }
+
+  free(vm.grayStack);
 }

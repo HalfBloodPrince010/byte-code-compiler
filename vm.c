@@ -170,6 +170,10 @@ void initVM() {
   initTable(&vm.globals);
   initTable(&vm.strings);
 
+  vm.grayCount = 0;
+  vm.grayCapacity = 0;
+  vm.grayStack = NULL;
+
   // Register the native functions using FFI: defineNative
   defineNative("clock", clockNative);
 }
