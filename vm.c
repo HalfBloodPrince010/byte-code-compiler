@@ -167,6 +167,9 @@ static void concatenate() {
 void initVM() {
   resetStack();
   vm.objects = NULL;
+  vm.bytesAllocated = 0;
+  vm.nextGC = 1024;
+
   initTable(&vm.globals);
   initTable(&vm.strings);
 
