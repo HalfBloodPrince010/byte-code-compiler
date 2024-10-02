@@ -36,6 +36,7 @@ typedef enum {
   OP_NOT,
   OP_CLOSE_UPVALUE,
   OP_CLASS,
+  OP_METHOD,
   OP_RETURN,
 } OpCode;
 
