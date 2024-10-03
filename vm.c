@@ -91,6 +91,10 @@ static bool call(ObjClosure *closure, int argCount) {
 static bool callValue(Value callee, int argCount) {
   if (IS_OBJ(callee)) {
     switch (OBJ_TYPE(callee)) {
+    case OBJ_BOUND_METHOD: {
+      ObjBoundMethod *bound = AS_BOUND_METHOD(callee);
+      return call(bound->method, argCount);
+    }
     case OBJ_CLASS: {
       /*
        * Instance are created Someclass(init1, init2..initn), similar to
@@ -123,6 +127,20 @@ static bool callValue(Value callee, int argCount) {
   }
   runtimeError(" Can only call functions and classes.");
   return false;
+}
+
+static bool bindMethod(ObjClass *klass, ObjString *name) {
+  Value method;
+
+  if (!tableGet(&klass->methods, name, &method)) {
+    runtimeError("Undefined porperty '%s'.", name->chars);
+    return false;
+  }
+
+  ObjBoundMethod *bound = newBoundMethod(peek(0), AS_CLOSURE(method));
+  pop();
+  push(OBJ_VAL(bound));
+  return true;
 }
 
 static ObjUpvalue *captureUpvalue(Value *local) {
@@ -334,8 +352,10 @@ static InterpretResult run() {
         break;
       }
 
-      runtimeError("Undefined Property '%s'.", name->chars);
-      return INTERPRET_RUNTIME_ERROR;
+      if (!bindMethod(instance->klass, name)) {
+        return INTERPRET_RUNTIME_ERROR;
+      }
+      break;
     }
     case OP_GET_GLOBAL: {
       ObjString *name = READ_STRING();
