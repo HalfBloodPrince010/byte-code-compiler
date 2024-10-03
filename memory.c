@@ -140,9 +140,9 @@ static void freeObject(Obj *object) {
 
   switch (object->type) {
   case OBJ_BOUND_METHOD: {
-      FREE(ObjBoundMethod, object);
-      break;
-    }
+    FREE(ObjBoundMethod, object);
+    break;
+  }
   case OBJ_INSTANCE: {
     ObjInstance *instance = (ObjInstance *)object;
     freeTable(&instance->fields);
@@ -191,6 +191,9 @@ static void markRoots() {
   for (Value *slot = vm.stack; slot < vm.stackTop; slot++) {
     markValue(*slot);
   }
+
+  // initString
+  markObject((Obj *)vm.initString);
 
   // Closures
   for (int i = 0; i < vm.frameCount; i++) {
