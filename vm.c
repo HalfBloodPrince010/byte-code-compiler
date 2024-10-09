@@ -538,6 +538,17 @@ static InterpretResult run() {
       defineMethod(READ_STRING());
       break;
     }
+    case OP_INHERIT: {
+      Value superclass = peek(1);
+      if (!(IS_CLASS(superclass))) {
+        runtimeError("Superclass must be a class.");
+        return INTERPRET_RUNTIME_ERROR;
+      }
+      ObjClass *subclass = AS_CLASS(peek(0));
+      tableAddAll(&AS_CLASS(superclass)->methods, &subclass->methods);
+      pop(); // subclass
+      break;
+    }
     case OP_CLOSE_UPVALUE: {
       closeUpvalues(vm.stackTop - 1);
       pop();

@@ -754,6 +754,18 @@ static void classDeclaration() {
   classCompiler.enclosing = currentClass;
   currentClass = &classCompiler;
 
+  if (match(TOKEN_LESS)) {
+    consume(TOKEN_IDENTIFIER, "Expected Superclass Name.");
+    // Read previous parsed token, and adds it onto stack
+    variable(false);
+    if (identifiersEqual(&className, &parser.previous)) {
+      error("A class can't inherit from itself.");
+    }
+    // Adds the passed token onto stack
+    namedVariable(className, false);
+    emitByte(OP_INHERIT);
+  }
+
   namedVariable(className, false);
 
   consume(TOKEN_LEFT_BRACE, "Expect '{' before the class body");
