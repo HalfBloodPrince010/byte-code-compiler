@@ -19,6 +19,7 @@ typedef enum {
   OP_GET_LOCAL,
   OP_GET_GLOBAL,
   OP_GET_UPVALUE,
+  OP_GET_SUPER,
   OP_EQUAL,
   OP_GREATER,
   OP_LESS,
